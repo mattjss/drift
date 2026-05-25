@@ -1,7 +1,7 @@
 const grid   = document.getElementById('grid');
 const cursor = document.getElementById('cursor');
 
-const CELL = 28;
+const COLS = 24; // 24×24 = 576 cells
 
 // ── Audio ────────────────────────────────────────────────────
 let AC;
@@ -11,51 +11,47 @@ function ac() {
   return AC;
 }
 
-function playHover(hue) {
+// Pitch mapped to x-position in grid (left = low, right = high)
+// Range: 300Hz – 1200Hz
+function playHover(xFraction) {
   try {
-    const a = ac();
-    const t = a.currentTime;
-    // Pitch derived from hue (blue → purple = 210°→310°, mapped to 600–1400Hz)
-    const freq = 600 + ((hue - 210) / 100) * 800;
-    const o = a.createOscillator(), g = a.createGain();
+    const a  = ac();
+    const t  = a.currentTime;
+    const freq = 300 * Math.pow(4, xFraction); // exponential 300→1200Hz
+    const o  = a.createOscillator();
+    const g  = a.createGain();
     o.connect(g); g.connect(a.destination);
     o.type = 'sine';
     o.frequency.setValueAtTime(freq, t);
-    o.frequency.exponentialRampToValueAtTime(freq * 0.7, t + 0.05);
-    g.gain.setValueAtTime(0.04, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
-    o.start(t); o.stop(t + 0.06);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.75, t + 0.06);
+    g.gain.setValueAtTime(0.045, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    o.start(t); o.stop(t + 0.08);
   } catch (_) {}
 }
 
 // ── Build grid ───────────────────────────────────────────────
 function build() {
   grid.innerHTML = '';
-
-  const W = window.innerWidth + 48;
-  const H = window.innerHeight + 48;
-  const cols = Math.ceil(W / CELL);
-  const rows = Math.ceil(H / CELL);
-
-  grid.style.setProperty('--cols', cols);
-  grid.style.setProperty('--size', CELL + 'px');
+  grid.style.setProperty('--cols', COLS);
 
   const frag = document.createDocumentFragment();
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
+  for (let row = 0; row < COLS; row++) {
+    for (let col = 0; col < COLS; col++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
 
-      const baseHue = 210 + (col / cols) * 90 + (row / rows) * 15;
-      const hue = (baseHue + (Math.random() * 16 - 8)).toFixed(1);
-      const r   = (Math.random() * 360).toFixed(1);
-      const o   = (Math.random() * 0.07 + 0.04).toFixed(3);
+      // Random scale destination per cell (2x – 4x)
+      const s = (2.0 + Math.random() * 2.0).toFixed(2);
+      // Varied resting opacity — gives the grid subtle texture
+      const o = (0.06 + Math.random() * 0.09).toFixed(3);
 
-      cell.style.cssText = `--r:${r};--hue:${hue};--o:${o}`;
+      cell.style.cssText = `--s:${s};--o:${o}`;
 
-      // Sound on hover (CSS :hover fires, we use pointerenter)
-      cell.addEventListener('pointerenter', () => playHover(parseFloat(hue)), { passive: true });
+      // Sound pitch from column position
+      const xFrac = col / (COLS - 1);
+      cell.addEventListener('pointerenter', () => playHover(xFrac), { passive: true });
 
       frag.appendChild(cell);
     }
@@ -74,4 +70,3 @@ document.addEventListener('mouseleave', () => { cursor.style.opacity = '0'; });
 document.addEventListener('mouseenter', () => { cursor.style.opacity = '1'; });
 
 build();
-window.addEventListener('resize', build);
