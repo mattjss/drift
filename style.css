@@ -1,0 +1,115 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #07070f;
+  cursor: none;
+}
+
+/* ─── Grid ──────────────────────────────────────────────── */
+
+#grid {
+  position: fixed;
+  inset: -24px;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--size));
+  grid-auto-rows: var(--size);
+  place-content: start;
+}
+
+/* ─── Cell ──────────────────────────────────────────────── */
+
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size);
+  height: var(--size);
+
+  /* resting state */
+  opacity: var(--o, 0.07);
+  scale: 1;
+  rotate: 0deg;
+
+  /* slow exit transition — this is the trail */
+  transition:
+    opacity  0.95s ease-out,
+    rotate   0.75s ease-out,
+    scale    0.75s ease-out;
+}
+
+/* trick: instant-on when hovered, slow-off when not */
+.cell:hover {
+  transition-duration: 0s;
+  opacity: 1;
+  scale: 1.6;
+  rotate: calc(var(--r) * 1deg);
+}
+
+/* the tick mark inside each cell */
+.cell::after {
+  content: '';
+  display: block;
+  width: 13px;
+  height: 2px;
+  border-radius: 2px;
+  background: hsl(var(--hue) 55% 80%);
+  box-shadow: 0 0 0 0 hsl(var(--hue) 70% 65% / 0);
+  transition: box-shadow 0.95s ease-out;
+}
+
+.cell:hover::after {
+  box-shadow: 0 0 10px 3px hsl(var(--hue) 75% 65% / 0.65);
+  transition-duration: 0s;
+}
+
+/* ─── Custom cursor ─────────────────────────────────────── */
+
+#cursor {
+  position: fixed;
+  inset: 0;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  pointer-events: none;
+  translate: -50% -50%;
+  z-index: 1000;
+  transition: opacity 0.2s;
+}
+
+/* ─── Label ─────────────────────────────────────────────── */
+
+#label {
+  position: fixed;
+  bottom: 28px;
+  left: 28px;
+  z-index: 100;
+  pointer-events: none;
+  user-select: none;
+
+  span {
+    display: block;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.28);
+  }
+
+  small {
+    display: block;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.12);
+    margin-top: 4px;
+  }
+}
