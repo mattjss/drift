@@ -39,7 +39,7 @@ html, body {
   height: var(--sz);
   padding: 18px;
   gap: 0;
-  background: #0f0f0f;
+  background: #000;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
