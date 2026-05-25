@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>field</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #0a0a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    #wrap {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      grid-template-rows: repeat(16, 1fr);
+      width: 500px;
+      height: 500px;
+      padding: 20px;
+      gap: 1px;
+      background: #0f0f0f;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      touch-action: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Radial glow that follows cursor */
+    #grid::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(
+        circle 120px at var(--mx, 50%) var(--my, 50%),
+        rgba(255,255,255,0.035) 0%,
+        transparent 100%
+      );
+      opacity: var(--glow, 0);
+      transition: opacity 0.4s;
+      border-radius: inherit;
+    }
+
+    .cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .filing {
+      width: 70%;
+      height: 2px;
+      background: #fff;
+      border-radius: 1px;
+      transform-origin: 50% 50%;
+      will-change: transform;
+      opacity: 0.82;
+    }
+
+    #meta {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    #label {
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.2);
+    }
+
+    #back {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.15);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    #back:hover { color: rgba(255,255,255,0.4); }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="grid"></div>
+    <div id="meta">
+      <a href="index.html" id="back">← concepts</a>
+      <span id="label">field — move + click</span>
+    </div>
+  </div>
+
+  <script>
+    const SIZE = 16;
+    const LERP = 0.16;
+
+    const grid = document.getElementById('grid');
+
+    // Build 16×16 grid
+    const filings = [];
+    for (let i = 0; i < SIZE * SIZE; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const f = document.createElement('div');
+      f.className = 'filing';
+      cell.appendChild(f);
+      grid.appendChild(cell);
+      filings.push(f);
+    }
+
+    // ── State ─────────────────────────────────────────────────
+    const centers      = filings.map(() => ({ x: 0, y: 0 }));
+    const curAngles    = new Float32Array(SIZE * SIZE);   // current rendered angle
+    const tgtAngles    = new Float32Array(SIZE * SIZE);   // desired angle from atan2
+    const burstVel     = new Float32Array(SIZE * SIZE);   // click shockwave velocity
+
+    let mx = -9999, my = -9999;
+    let isInside = false;
+    let glowMx = 50, glowMy = 50; // % inside grid
+
+    function updateCenters() {
+      filings.forEach((f, i) => {
+        const r = f.getBoundingClientRect();
+        centers[i].x = r.left + r.width  / 2;
+        centers[i].y = r.top  + r.height / 2;
+      });
+    }
+
+    updateCenters();
+    window.addEventListener('resize', updateCenters);
+
+    // ── Audio ─────────────────────────────────────────────────
+    let AC;
+    function ac() {
+      if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+      if (AC.state === 'suspended') AC.resume();
+      return AC;
+    }
+
+    function synthTick(freq = 1200, dur = 0.045, vol = 0.055) {
+      try {
+        const a = ac();
+        const o = a.createOscillator();
+        const g = a.createGain();
+        o.connect(g); g.connect(a.destination);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(freq, a.currentTime);
+        o.frequency.exponentialRampToValueAtTime(freq * 0.55, a.currentTime + dur);
+        g.gain.setValueAtTime(vol, a.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+        o.start(); o.stop(a.currentTime + dur + 0.005);
+      } catch (_) {}
+    }
+
+    function synthClick() {
+      try {
+        const a = ac();
+        const t = a.currentTime;
+
+        // Low thud
+        const o1 = a.createOscillator(), g1 = a.createGain();
+        o1.connect(g1); g1.connect(a.destination);
+        o1.type = 'sine';
+        o1.frequency.setValueAtTime(280, t);
+        o1.frequency.exponentialRampToValueAtTime(55, t + 0.18);
+        g1.gain.setValueAtTime(0.28, t);
+        g1.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        o1.start(t); o1.stop(t + 0.23);
+
+        // High shimmer
+        const o2 = a.createOscillator(), g2 = a.createGain();
+        o2.connect(g2); g2.connect(a.destination);
+        o2.type = 'sine';
+        o2.frequency.setValueAtTime(2800, t);
+        o2.frequency.exponentialRampToValueAtTime(900, t + 0.1);
+        g2.gain.setValueAtTime(0.038, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        o2.start(t); o2.stop(t + 0.13);
+      } catch (_) {}
+    }
+
+    // Tick throttle — play every ≥28px of movement inside grid
+    let lastTickX = 0, lastTickY = 0;
+    function maybeTick(x, y) {
+      if (!isInside) return;
+      const dx = x - lastTickX, dy = y - lastTickY;
+      if (dx * dx + dy * dy >= 28 * 28) {
+        synthTick();
+        lastTickX = x; lastTickY = y;
+      }
+    }
+
+    // ── Mouse ─────────────────────────────────────────────────
+    window.addEventListener('mousemove', e => {
+      mx = e.clientX; my = e.clientY;
+      maybeTick(mx, my);
+
+      // Update glow position inside grid (as % of grid)
+      if (isInside) {
+        const r = grid.getBoundingClientRect();
+        glowMx = ((mx - r.left) / r.width)  * 100;
+        glowMy = ((my - r.top)  / r.height) * 100;
+        grid.style.setProperty('--mx', glowMx + '%');
+        grid.style.setProperty('--my', glowMy + '%');
+      }
+    });
+
+    grid.addEventListener('mouseenter', () => {
+      isInside = true;
+      grid.style.setProperty('--glow', '1');
+      synthTick(1600, 0.03, 0.03);
+    });
+
+    grid.addEventListener('mouseleave', () => {
+      isInside = false;
+      grid.style.setProperty('--glow', '0');
+    });
+
+    // Click → shockwave
+    grid.addEventListener('pointerdown', e => {
+      synthClick();
+      const cx = e.clientX, cy = e.clientY;
+
+      filings.forEach((_, i) => {
+        const c = centers[i];
+        const dx = c.x - cx, dy = c.y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy) + 1;
+
+        // Radial delay — wave propagates outward at ~400px/s
+        const delay = (dist / 420) * 1000;
+        setTimeout(() => {
+          const str = Math.max(0, 1 - dist / 260) * 22;
+          burstVel[i] += str * (Math.random() > 0.5 ? 1 : -1);
+        }, delay);
+      });
+    });
+
+    // Touch support
+    grid.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const t = e.touches[0];
+      mx = t.clientX; my = t.clientY;
+      isInside = true;
+    }, { passive: false });
+
+    grid.addEventListener('touchmove', e => {
+      e.preventDefault();
+      const t = e.touches[0];
+      mx = t.clientX; my = t.clientY;
+      maybeTick(mx, my);
+    }, { passive: false });
+
+    grid.addEventListener('touchend', () => { isInside = false; });
+
+    // ── Helpers ───────────────────────────────────────────────
+    function lerpAngle(a, b, t) {
+      let d = b - a;
+      while (d >  180) d -= 360;
+      while (d < -180) d += 360;
+      return a + d * t;
+    }
+
+    // ── Animation loop ────────────────────────────────────────
+    function tick() {
+      for (let i = 0; i < filings.length; i++) {
+        const c = centers[i];
+        tgtAngles[i] = Math.atan2(my - c.y, mx - c.x) * 180 / Math.PI;
+
+        if (Math.abs(burstVel[i]) > 0.05) {
+          // Shockwave active — override lerp
+          curAngles[i] += burstVel[i];
+          burstVel[i] *= 0.87;
+        } else {
+          burstVel[i] = 0;
+          curAngles[i] = lerpAngle(curAngles[i], tgtAngles[i], LERP);
+        }
+
+        filings[i].style.transform = `rotate(${curAngles[i]}deg)`;
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    tick();
+  </script>
+</body>
+</html>
