@@ -17,16 +17,23 @@ function playHover(xFraction) {
   try {
     const a  = ac();
     const t  = a.currentTime;
-    const freq = 300 * Math.pow(4, xFraction); // exponential 300→1200Hz
-    const o  = a.createOscillator();
-    const g  = a.createGain();
+    const freq = 300 * Math.pow(4, xFraction);
+    // Wind chime — triangle fundamental, natural bell attack/decay
+    const o = a.createOscillator(), g = a.createGain();
     o.connect(g); g.connect(a.destination);
-    o.type = 'sine';
-    o.frequency.setValueAtTime(freq, t);
-    o.frequency.exponentialRampToValueAtTime(freq * 0.75, t + 0.06);
-    g.gain.setValueAtTime(0.045, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-    o.start(t); o.stop(t + 0.08);
+    o.type = 'triangle'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(0.052, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    o.start(t); o.stop(t + 0.23);
+    // Inharmonic shimmer overtone — gives it a real bell character
+    const o2 = a.createOscillator(), g2 = a.createGain();
+    o2.connect(g2); g2.connect(a.destination);
+    o2.type = 'sine'; o2.frequency.value = freq * 2.76;
+    g2.gain.setValueAtTime(0.001, t);
+    g2.gain.linearRampToValueAtTime(0.016, t + 0.006);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    o2.start(t); o2.stop(t + 0.14);
   } catch (_) {}
 }
 
